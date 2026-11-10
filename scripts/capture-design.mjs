@@ -18,6 +18,20 @@ const shot = async (name, fullPage = true) =>
   page.screenshot({ path: new URL(name, output).pathname, fullPage });
 const navigate = async (view) => {
   await page.goto(`${baseURL}/#${view}`, { waitUntil: 'networkidle' });
+  const headings = {
+    overview: '三个视角，看清全程时效',
+    routes: '航线时效对比',
+    warehouses: '亚马逊仓库时效对比',
+    containers: '柜子时效对比',
+  };
+  await page
+    .getByRole('heading', { name: new RegExp(headings[view]) })
+    .waitFor({ state: 'visible' });
+  await page
+    .locator(view === 'overview' ? '.overview-card' : '.comparison-card')
+    .first()
+    .waitFor({ state: 'visible' });
+  await page.waitForLoadState('networkidle');
   await page.evaluate(() => document.fonts.ready);
 };
 try {
