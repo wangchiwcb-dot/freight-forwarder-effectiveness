@@ -17,3 +17,12 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Distinguish company channel (`channel`) from carrier service (`route` here). Container and service timing ends at devanning; Amazon timing ends at actual delivery.
 - Use clearly labeled synthetic data until a production API is explicitly connected. Do not publish customer records or claim these metrics are live.
 - The user will create the GitHub repository later; push only after the repository URL is supplied.
+
+## Full-stack decisions (2026-11-10)
+
+- User supplied and authorized pushing to https://github.com/wangchiwcb-dot/freight-forwarder-effectiveness. Aliyun deployment is explicitly a later decision.
+- Repository root remains this historical `frontend/` folder; it now includes the backend in `server/`, shared types in `shared/`, and SQL in `database/`.
+- Backend is Node.js + TypeScript + Fastify; production uses existing PostgreSQL views. Do not write to the live database or change publication flags while implementing read APIs.
+- Frontend must fetch the API; never silently fall back to bundled fixtures when the backend fails.
+- Synthetic data belongs only in the explicit server demo adapter. Different metrics have independent valid denominators; stacked stages use a common complete subset.
+- Run production build before browser tests. Browser tests start the built application on 4175; keep 4173 available for user preview.

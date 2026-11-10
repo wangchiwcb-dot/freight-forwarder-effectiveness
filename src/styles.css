@@ -2220,3 +2220,36 @@ a {
   grid-column: 1/-1;
   min-height: 190px;
 }
+.query-state {
+  background: #fff;
+  border: 1px solid #e7ecef;
+  border-radius: 10px;
+  padding: 30px;
+  margin: 22px 0;
+  min-height: 220px;
+}
+.query-state > p {
+  font-size: 13px;
+  color: #638295;
+  margin-bottom: 20px;
+}
+.picker-list .query-state {
+  min-height: 120px;
+  padding: 10px;
+  border: 0;
+}
+.picker-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 12px;
+  min-height: 24px;
+}
+.stage-sample-counts {
+  display: flex;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  font-size: 10px;
+  color: #718b9b;
+  margin-top: 8px;
+}

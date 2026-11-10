@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
-import type { Dataset, RouteDefinition, WarehouseDefinition } from '../domain/types';
+import { businessDate, monthAt } from './dates.js';
+import type { Dataset, RouteDefinition, WarehouseDefinition } from './demo-types.js';
 
 export const routes: RouteDefinition[] = [
   {
@@ -74,8 +75,8 @@ export const warehouses: WarehouseDefinition[] = [
 
 // Reproducible synthetic fixtures. No customer records or production database access.
 export function createDemoData(now = new Date()): Dataset {
-  const anchor = dayjs(now).startOf('month');
-  const today = dayjs(now).format('YYYY-MM-DD');
+  const anchor = dayjs(`${monthAt(now)}-01`);
+  const today = businessDate(now);
   const shipments: Dataset['shipments'] = [];
   const deliveries: Dataset['deliveries'] = [];
   for (let offset = 12; offset >= 1; offset--) {
@@ -122,4 +123,3 @@ export function createDemoData(now = new Date()): Dataset {
   }
   return { shipments, deliveries };
 }
-export const dataset = createDemoData();

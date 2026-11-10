@@ -1,7 +1,7 @@
 import { Button, DatePicker, Input, Select } from 'antd';
 import { ReloadOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { routes } from '../data/demo';
+import type { Metadata } from '../../shared/contracts';
 import type { Filters as FilterState, View } from '../domain/types';
 
 export function Filters({
@@ -9,15 +9,19 @@ export function Filters({
   onChange,
   onReset,
   view,
+  metadata,
 }: {
   value: FilterState;
   onChange: (value: FilterState) => void;
   onReset: () => void;
   view: View;
+  metadata: Metadata;
 }) {
   const options = (key: 'origin' | 'destination' | 'channel', title: string) => [
     { value: 'all', label: title },
-    ...[...new Set(routes.map((r) => r[key]))].map((v) => ({ value: v, label: v })),
+    ...metadata[
+      ({ origin: 'origins', destination: 'destinations', channel: 'channels' } as const)[key]
+    ].map((value) => ({ value, label: value })),
   ];
   return (
     <section className="filters-bar" aria-label="时效筛选">

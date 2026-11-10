@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Segmented, Tag, Tooltip } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -6,16 +6,10 @@ import {
   InfoCircleOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
-import { dataset, routes, warehouses } from '../data/demo';
-import {
-  distribution,
-  formatDays,
-  getEntities,
-  getSamples,
-  recentMonths,
-  summarize,
-} from '../domain/metrics';
-import type { Dimension, Entity, Filters, Metric, Sample } from '../domain/types';
+import { formatDays } from '../domain/metrics';
+import { useComparison } from '../api/client';
+import { QueryState } from '../components/QueryState';
+import type { Dimension, Filters, Metric } from '../domain/types';
 import {
   ChartEmpty,
   ChartPanel,
@@ -43,22 +37,15 @@ export function Detail({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [metric, setMetric] = useState<Metric>('total');
-  const samples = useMemo(() => getSamples(dataset, filters, dimension), [filters, dimension]);
-  const entities = useMemo(() => getEntities(samples, dimension), [samples, dimension]);
-  const chosenIds = selectedIds ?? entities.slice(0, 3).map((e) => e.id);
-  const chosen: Entity[] = chosenIds.map(
-    (id) =>
-      entities.find((e) => e.id === id) ?? {
-        id,
-        name: dimension === 'routes' ? (routes.find((r) => r.id === id)?.name ?? id) : id,
-        subtitle:
-          dimension === 'warehouses'
-            ? (warehouses.find((w) => w.id === id)?.city ?? '')
-            : '当前筛选下暂无有效样本',
-        samples: [],
-      },
-  );
-  const selectedSamples = chosen.flatMap((e) => e.samples);
+  const query = useComparison(filters, dimension, metric, selectedIds);
+  useEffect(() => {
+    if (query.data && selectedIds === null) onSelect(query.data.entities.map((e) => e.id));
+  }, [query.data, selectedIds, onSelect]);
+  if (query.isPending || query.error)
+    return <QueryState error={query.error} retry={() => query.refetch()} />;
+  const data = query.data;
+  const chosen = data.entities;
+  const chosenIds = chosen.map((e) => e.id);
   const totalLabel = dimension === 'warehouses' ? '开船 → 送仓' : '开船 → 拆柜';
   const metricLabel =
     metric === 'total'
@@ -69,32 +56,16 @@ export function Detail({
           ? '拆柜 → 送仓'
           : '到港 → 拆柜';
   const stageData = chosen
-    .filter((e) => e.samples.length)
+    .filter((e) => e.stages.count > 0)
     .map((e) => ({
       name: e.name,
-      ...Object.fromEntries(
-        ['sea', 'port', 'devanning', ...(dimension === 'warehouses' ? ['tail'] : [])].map((key) => [
-          key,
-          e.samples.reduce(
-            (sum, s) => sum + s[key as keyof Pick<Sample, 'sea' | 'port' | 'devanning' | 'tail'>],
-            0,
-          ) / e.samples.length,
-        ]),
-      ),
+      sea: e.stages.sea!,
+      port: e.stages.port!,
+      devanning: e.stages.devanning!,
+      ...(dimension === 'warehouses' ? { tail: e.stages.tail! } : {}),
     }));
-  const trend = recentMonths(filters.month).map((month) => {
-    const monthly = getEntities(getSamples(dataset, { ...filters, month }, dimension), dimension);
-    return {
-      name: `${Number(month.slice(-2))}月`,
-      ...Object.fromEntries(
-        chosen.map((e) => [
-          e.id,
-          summarize(monthly.find((m) => m.id === e.id)?.samples ?? [], metric).mean,
-        ]),
-      ),
-    };
-  });
-  const allSummary = summarize(samples, metric);
+  const trend = data.trend.map((point) => ({ name: point.name, ...point.values }));
+  const allSummary = data.overall;
   return (
     <>
       <div className="detail-heading">
@@ -138,7 +109,7 @@ export function Detail({
       </div>
       <div className="comparison-grid">
         {chosen.map((entity, i) => {
-          const summary = summarize(entity.samples, metric);
+          const summary = entity.summary;
           return (
             <section
               className="comparison-card"
@@ -212,8 +183,15 @@ export function Detail({
           }
         >
           <StageChart data={stageData} warehouse={dimension === 'warehouses'} />
+          <div className="stage-sample-counts">
+            {chosen.map((e) => (
+              <span key={e.id}>
+                {e.name}：{e.stages.count} 个分段样本
+              </span>
+            ))}
+          </div>
           <div className="chart-footnote">
-            <InfoCircleOutlined /> 分段图始终展示全程，便于定位耗时环节
+            <InfoCircleOutlined /> 分段图采用所有环节齐全的共同样本，与单项指标样本量可能不同
           </div>
         </ChartPanel>
         <ChartPanel
@@ -235,17 +213,12 @@ export function Detail({
                       <i style={{ background: palette[i] }} />
                       {e.name}
                     </div>
-                    {e.samples[0] ? (
+                    {e.milestones.length > 0 ? (
                       <div className="milestone-track">
-                        {[
-                          { name: '开船', date: e.samples[0].shipment.departure },
-                          { name: '到港', date: e.samples[0].shipment.arrival },
-                          { name: '提柜', date: e.samples[0].shipment.pickup },
-                          { name: '拆柜', date: e.samples[0].shipment.devanning },
-                        ].map((item) => (
+                        {e.milestones.map((item) => (
                           <div key={item.name}>
                             <i style={{ borderColor: palette[i] }} />
-                            <strong>{item.date?.slice(5).replace('-', '/')}</strong>
+                            <strong>{item.date?.slice(5).replace('-', '/') ?? '—'}</strong>
                             <small>{item.name}</small>
                           </div>
                         ))}
@@ -270,7 +243,7 @@ export function Detail({
           title="对比样本时效分布"
           subtitle={`${metricLabel} · 仅包含当前已选对象的有效样本`}
         >
-          <Histogram data={distribution(selectedSamples, metric)} />
+          <Histogram data={data.distribution} />
         </ChartPanel>
         <ChartPanel
           title={`当前筛选下的${labels[dimension]}表现`}
@@ -282,10 +255,7 @@ export function Detail({
           }
         >
           <RankingChart
-            data={entities
-              .map((e) => ({ id: e.id, name: e.name, value: summarize(e.samples, metric).mean! }))
-              .sort((a, b) => a.value - b.value)
-              .slice(0, 8)}
+            data={data.ranking}
             onSelect={(id) => {
               if (!chosenIds.includes(id)) {
                 if (chosenIds.length >= 4) setPickerOpen(true);
@@ -307,8 +277,10 @@ export function Detail({
         <ComparePicker
           key={dimension}
           dimension={dimension}
-          entities={entities}
-          selected={chosenIds.filter((id) => entities.some((e) => e.id === id))}
+          filters={filters}
+          metric={metric}
+          selected={chosenIds}
+          selectedLabels={chosen}
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}
           onApply={(ids) => {

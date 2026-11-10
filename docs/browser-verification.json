@@ -1,6 +1,6 @@
 {
-  "checkedAt": "2026-11-10T04:16:06.738Z",
-  "baseURL": "http://127.0.0.1:4174",
+  "checkedAt": "2026-11-10T05:16:33.316Z",
+  "baseURL": "http://127.0.0.1:4180",
   "errors": [],
   "pages": ["overview", "routes", "warehouses", "containers"],
   "desktop": "1440 × 1080",

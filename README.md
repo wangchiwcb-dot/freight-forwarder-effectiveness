@@ -1,69 +1,66 @@
-# 中航环球 · 渠道时效前台
+# 中航环球 · 渠道时效系统
 
-基于 React + TypeScript + Ant Design 的可交互设计稿。包含首页大盘、柜子时效、航线对比、亚马逊仓库对比，统一使用图表呈现。
+对外展示柜子、航线、亚马逊仓库时效，支持筛选、四项对比、分段图、趋势与分布。前端为 React + TypeScript + Ant Design + Recharts，后端为 Node.js + TypeScript + Fastify + PostgreSQL，使用 TanStack Query 管理请求。
 
-当前使用确定性生成的演示数据，不连接真实业务数据库，不代表实际运输承诺。
+前端已实际调用后端 API；后端支持显式演示模式和现有 PostgreSQL 数据库。当前本地预览使用演示模式，尚未部署阿里云或开放生产数据。
 
-## 本地运行
+## 启动
 
-需要 Node.js 22.12+ 和 npm。
+需要 Node.js 22.12+（推荐 24）与 npm。
 
 ```sh
 npm ci
-npm run dev -- --host 127.0.0.1 --port 4173
+cp .env.example .env
+npm run dev:api
 ```
 
-打开 http://127.0.0.1:4173/ 。
+另开终端运行 `npm run dev -- --host 127.0.0.1 --port 4173`，打开 http://127.0.0.1:4173 。
+
+## 校验与构建
 
 ```sh
 npm run typecheck
-npm run test
-npm run test:e2e
+npm test
 npm run build
+npm run test:e2e
 npm run format:check
+npm run package
 ```
 
-浏览器测试使用本机 Google Chrome；如机器没有 Chrome，可安装 Chrome 或将 `playwright.config.ts` 的 channel 改为已有浏览器。测试会自动启动本地预览，也可复用已启动的 4173 端口。
+生产构建输出至 `dist/client` 和 `dist/api`。`npm run start` 启动后端，通过 `STATIC_DIR=dist/client` 同时托管网页。部署包位于 `artifacts/`，含 SHA-256 摘要。详细配置见 [运行说明](docs/runbook.md)。
 
-生产静态文件位于 `dist/client/`。Vite 构建同时保留模板的可选静态托管适配器；本次没有部署或配置远程仓库。
+GitHub Actions 在推送 main 和 PR 时执行类型/格式检查、统计与 API 测试、真实 SQL 权限测试、生产构建、浏览器测试、Docker 构建与容器启动检查，并上传安装包。
 
-## 页面
-
-- `/#overview`：三个视角概览、近六个月趋势、航线排名、仓库排名、柜子时效分布。
-- `/#containers`：按柜号检索、独立柜次对比、分段时效、实际节点时间线。
-- `/#routes`：添加或移除最多四条航线，比较全程、海运、到港后时效。
-- `/#warehouses`：添加或移除最多四个仓库，比较全程、海运、拆柜后送仓时效。
-
-月份默认取浏览器当前日期的上一个自然月，2026-11-10 打开时为 2026-10。全局筛选按开船月份、起运港、目的港、渠道、查验状态即时生效。切换详情保留全局筛选，柜号检索仅影响柜子视角。
-
-## 代码结构
+## 仓库结构
 
 ```text
-src/
-  App.tsx                导航、全局筛选、分视角对比选择
-  main.tsx               Ant Design 主题、中文本地化、React 19 兼容
-  components/            筛选条、对比选择器、复用图表
-  pages/                 首页与三个视角共用的详情页
-  domain/types.ts        运输、送仓、筛选、指标类型
-  domain/metrics.ts      样本过滤、自然日计算、聚合、P90、分布
-  data/demo.ts           可重复生成的模拟数据与演示字典
-  styles.css             品牌样式与 320px 起的响应布局
+src/                     React 页面、组件与 API 请求层
+shared/contracts.ts      前后端共用的请求/响应类型
+server/
+  app.ts                 只读 HTTP 接口与错误处理
+  analytics.ts           均值/P90、分段、排名与分布
+  repositories/postgres.ts 现有 PostgreSQL 有效视图适配
+  repositories/demo.ts   显式模拟数据适配
+  validation.ts          参数与比较上限检查
+  config.ts              环境配置，生产默认使用数据库
+  *.test.ts              API/统计/SQL 集成测试
+database/                结构迁移与待部署的只读权限脚本
+tests/e2e/               实际前后端浏览器测试
+Dockerfile               多阶段构建、非 root 运行
+.github/workflows/ci.yml 自动验证与产物构建
 ```
 
-使用 Recharts 绘制图表、dayjs 管理月份、React 状态管理筛选与选择。当前没有远程请求，不引入额外状态/请求库。后续接入 API 时可在 `data/` 下新增服务适配器并使用 TanStack Query 管理请求状态，保持领域计算与展示组件分离。
+本地仓库路径沿用早期的 `frontend/` 文件夹；这个 Git 仓库现在包含完整前后端。父目录的采集快照、客户数据、备份和凭据不在本仓库内。
 
-## 数据边界
+## 功能与统计边界
 
-- 柜子、航线：以独立运输柜次统计，终点为拆柜；同一柜号的不同运输不会合并。
-- 仓库：以有效的亚马逊送仓批次统计，终点为实际送仓，不以快递交接、预计日期或上架代替。
-- 当前演示以完整且顺序有效的分段节点为统一样本池。正式接入需依据后端逐指标有效性提供各指标的独立样本与分母；不能直接复制演示数据生成器或把此处完整节点筛选当成生产有效性规则。
-- 正式接入应由后端强制检查 `is_published` 和访问权限，并使用 `valid_container_metrics` / `valid_amazon_delivery_metrics`，前端不能代替权限边界。
-- 近期月份仅统计已完成样本，存在在途样本造成的偏差。均值和 P90 都不能解释为服务承诺。
-- 日期按自然日计算，缺失或倒序不补零。仓库包含不同航线，应结合港口和渠道筛选比较。
-- 图表、统计卡片均由同一组筛选后的样本计算，未使用与筛选无关的占位数字。
+- 首页展示三个视角，默认服务器上海时区上一个自然月。
+- 按开船月份、起运港、目的港、渠道、查验筛选；柜子支持柜号检索。
+- 航线和仓库候选项支持搜索分页，最多对比四项；切换月份或指标保留已选对象。
+- 按独立柜次和送仓批次分别统计，航线与公司渠道独立。
+- 各指标单独校验端点。总时效有效但中间节点缺失时保留总时效，分段图只使用各分段齐全的共同样本。
+- 空数据用 null，不补零；缺失航线不强行分类。近期月份有在途偏差，数据不能作为运输承诺。
+- 数据库查询仅允许固定公司、已发布、有效的海运记录，读取 `valid_container_metrics` / `valid_amazon_delivery_metrics`；无写入或批量发布接口。
+- 真实数据库故障不会自动切到演示数据；前端提供错误与重试状态。
 
-## Git
-
-`frontend/` 是独立 Git 仓库，默认分支 `main`。父目录的采集材料、数据库和业务数据没有纳入此仓库。待 GitHub 仓库创建后，再配置 remote 并推送。
-
-设计说明见 `docs/design-notes.md`，截图见 `docs/screenshots/`，检查记录见 `design-qa.md`。
+接口约定见 [API 文档](docs/api.md)，视觉说明见 [设计说明](docs/design-notes.md)。

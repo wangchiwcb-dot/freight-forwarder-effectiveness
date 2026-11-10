@@ -165,3 +165,30 @@ test('methodology opens and browser back navigation restores the overview', asyn
   await page.goBack();
   await expect(page.getByRole('heading', { name: '三个视角，看清全程时效' })).toBeVisible();
 });
+
+test('API failures show a retry state without silently replacing data with local fixtures', async ({
+  page,
+}) => {
+  let unavailable = true;
+  await page.route('**/api/v1/overview?**', async (route) => {
+    if (unavailable)
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: {
+            code: 'DATA_UNAVAILABLE',
+            message: '测试：数据服务暂时不可用',
+            requestId: 'test',
+          },
+        }),
+      });
+    else await route.continue();
+  });
+  await page.reload();
+  await expect(page.getByText('暂时无法获取时效数据')).toBeVisible();
+  await expect(page.locator('.overview-card')).toHaveCount(0);
+  unavailable = false;
+  await page.getByRole('button', { name: /重\s*试/ }).click();
+  await expect(page.locator('.overview-card')).toHaveCount(3);
+});

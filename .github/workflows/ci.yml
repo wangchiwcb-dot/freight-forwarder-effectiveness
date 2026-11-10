@@ -1,0 +1,52 @@
+name: Verify and build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:sites
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: node scripts/package-release.mjs
+      - run: docker build -t freight-times:ci .
+      - name: Verify container serves application and API
+        run: |
+          docker run -d --name freight-ci -p 127.0.0.1:3001:3001 -e DATA_SOURCE=demo -e ALLOW_PRODUCTION_DEMO=true freight-times:ci
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:3001/health/ready; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3001/api/v1/overview | node -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{const d=JSON.parse(s);if(d.meta.source!=='demo'||!d.containers.count)process.exit(1)})"
+          curl --fail --silent http://127.0.0.1:3001/ | grep -q '<div id="root">'
+          docker stop freight-ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: freight-times-release
+          path: artifacts/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results/
+          retention-days: 7

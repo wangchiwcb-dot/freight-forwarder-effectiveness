@@ -18,6 +18,8 @@ import { defaultFilters, previousMonth } from './domain/metrics';
 import type { Dimension, Filters as FilterState, View } from './domain/types';
 import { Overview } from './pages/Overview';
 import { Detail } from './pages/Detail';
+import { useMetadata } from './api/client';
+import { QueryState } from './components/QueryState';
 
 const navigation: { key: View; label: string; icon: React.ReactNode }[] = [
   { key: 'overview', label: '时效总览', icon: <BarChartOutlined /> },
@@ -30,6 +32,17 @@ function viewFromHash(): View {
   return navigation.some((n) => n.key === key) ? (key as View) : 'overview';
 }
 export default function App() {
+  const metadata = useMetadata();
+  const [initialized, setInitialized] = useState(false);
+  const sourceLabel =
+    metadata.data?.source === 'demo'
+      ? '演示数据'
+      : metadata.data?.source === 'postgres'
+        ? '已发布数据'
+        : metadata.error
+          ? '连接异常'
+          : '正在连接';
+  const isDemo = metadata.data?.source === 'demo';
   const [view, setView] = useState<View>(viewFromHash);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [selections, setSelections] = useState<Record<Dimension, string[] | null>>({
@@ -47,6 +60,12 @@ export default function App() {
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
   }, []);
+  useEffect(() => {
+    if (metadata.data && !initialized) {
+      setFilters((f) => ({ ...f, month: metadata.data.defaultMonth }));
+      setInitialized(true);
+    }
+  }, [metadata.data, initialized]);
   function navigate(next: View, entityId?: string) {
     setView(next);
     if (entityId && next !== 'overview') setSelections((s) => ({ ...s, [next]: [entityId] }));
@@ -60,7 +79,7 @@ export default function App() {
     setSelections((s) => ({ ...s, containers: null }));
   }
   function resetFilters() {
-    setFilters(defaultFilters());
+    setFilters({ ...defaultFilters(), month: metadata.data?.defaultMonth ?? previousMonth() });
     setSelections({ containers: null, routes: null, warehouses: null });
   }
   return (
@@ -141,7 +160,7 @@ export default function App() {
                 <span>
                   <DeploymentUnitOutlined /> 多维度时效对比
                 </span>
-                <Tag className="demo-tag">演示数据</Tag>
+                <Tag className="demo-tag">{sourceLabel}</Tag>
               </div>
             </div>
             <div className="hero-journey">
@@ -186,22 +205,35 @@ export default function App() {
         <div className="detail-topline">
           <div>
             <span>中航环球 / 时效洞察 / {navigation.find((n) => n.key === view)?.label}</span>
-            <Tag bordered={false}>演示数据</Tag>
+            <Tag bordered={false}>{sourceLabel}</Tag>
           </div>
         </div>
       )}
       <main className="main-content" id="main-content" tabIndex={-1}>
-        <Filters value={filters} onChange={changeFilters} onReset={resetFilters} view={view} />
+        {metadata.data && (
+          <Filters
+            value={filters}
+            onChange={changeFilters}
+            onReset={resetFilters}
+            view={view}
+            metadata={metadata.data}
+          />
+        )}
         <div className="data-context">
           <span>
-            <i /> {filters.month === previousMonth() ? '默认查看上个月' : '自定义开船月份'}{' '}
-            <span className="dot-separator">·</span> 仅统计已完成且节点有效的样本
+            <i />{' '}
+            {filters.month === (metadata.data?.defaultMonth ?? previousMonth())
+              ? '默认查看上个月'
+              : '自定义开船月份'}{' '}
+            <span className="dot-separator">·</span> 各项指标分别统计有效样本
           </span>
           <button onClick={() => setMethodOpen(true)}>
             统计口径 <InfoCircleOutlined />
           </button>
         </div>
-        {view === 'overview' ? (
+        {metadata.error || !metadata.data || !initialized ? (
+          <QueryState error={metadata.error} retry={() => metadata.refetch()} />
+        ) : view === 'overview' ? (
           <Overview filters={filters} onNavigate={navigate} />
         ) : (
           <Detail
@@ -236,7 +268,7 @@ export default function App() {
           </span>
           <small>让全球物流，更有确定性。</small>
         </div>
-        <span>交互设计演示 · 非实际运输承诺</span>
+        <span>{isDemo ? '演示数据' : '历史时效参考'} · 非实际运输承诺</span>
       </footer>
       <Drawer
         title="数据与统计口径"
@@ -246,15 +278,17 @@ export default function App() {
       >
         <div className="method-content">
           <Tag color="gold" bordered={false}>
-            当前为演示数据
+            {sourceLabel}
           </Tag>
           <h3>为时效选择提供参考</h3>
           <p>
-            本页面使用独立生成的模拟运输记录，展示筛选、对比和图表交互。尚未连接业务数据库，不能用作实际运输承诺。
+            {isDemo
+              ? '本页面由服务端提供模拟运输记录，展示筛选、对比和图表交互。尚未连接业务数据库，不能用作实际运输承诺。'
+              : '本页面展示审核发布的有效运输记录。历史时效用于辅助选择，不代表未来运输承诺。'}
           </p>
           <h4>月份与样本</h4>
           <p>
-            默认选中上一个自然月，目前为 {previousMonth()}
+            默认选中上一个自然月，目前为 {metadata.data?.defaultMonth ?? previousMonth()}
             。所有视角按实际开船月份归组，采用自然日；未完成、日期缺失或倒置的样本不进入对应时效统计，不以
             0 天代替。
           </p>
@@ -275,8 +309,10 @@ export default function App() {
           <p>
             全局筛选实时生效；点击「重置」回到上个月和全部筛选。航线与仓库最多同时选择四项。切换月份时保留航线、仓库选择，无样本显示为暂无数据；柜次选择随筛选重新初始化。
           </p>
-          <h4>正式接入</h4>
-          <p>上线时只展示审核发布且具有访问权限的有效数据；当前没有使用实际客户数据。</p>
+          <h4>样本有效性</h4>
+          <p>
+            各项指标只使用其起止节点均有效的样本。分段堆叠图使用所有分段均齐全的共同样本，因此分段图与总时效卡片的样本量可能不同。缺少航线名称的柜次计入柜子总览，不计入航线排行。近期月份还有在途样本，请结合样本量理解平均值。
+          </p>
         </div>
       </Drawer>
       <Drawer title="渠道时效" open={mobileOpen} onClose={() => setMobileOpen(false)} width={280}>

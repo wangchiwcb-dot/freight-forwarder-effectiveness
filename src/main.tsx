@@ -1,5 +1,6 @@
 import '@ant-design/v5-patch-for-react-19';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
@@ -14,6 +15,9 @@ import 'antd/dist/reset.css';
 import './styles.css';
 
 dayjs.locale('zh-cn');
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 0, refetchOnWindowFocus: true } },
+});
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ConfigProvider
@@ -36,7 +40,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         },
       }}
     >
-      <App />
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
     </ConfigProvider>
   </React.StrictMode>,
 );

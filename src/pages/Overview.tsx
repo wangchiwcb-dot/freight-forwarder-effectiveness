@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button, Segmented, Tooltip } from 'antd';
 import {
   ArrowRightOutlined,
@@ -7,15 +7,9 @@ import {
   InboxOutlined,
   ShopOutlined,
 } from '@ant-design/icons';
-import { dataset, routes } from '../data/demo';
-import {
-  distribution,
-  formatDays,
-  getEntities,
-  getSamples,
-  recentMonths,
-  summarize,
-} from '../domain/metrics';
+import { formatDays } from '../domain/metrics';
+import { useOverview } from '../api/client';
+import { QueryState } from '../components/QueryState';
 import type { Dimension, Filters } from '../domain/types';
 import {
   ChartPanel,
@@ -34,37 +28,16 @@ export function Overview({
   onNavigate: (view: Dimension, entityId?: string) => void;
 }) {
   const [trendMetric, setTrendMetric] = useState<'mean' | 'p90'>('mean');
-  const months = recentMonths(filters.month);
-  const containerSamples = useMemo(() => getSamples(dataset, filters, 'containers'), [filters]);
-  const warehouseSamples = useMemo(() => getSamples(dataset, filters, 'warehouses'), [filters]);
-  const routeEntities = getEntities(containerSamples, 'routes').sort(
-    (a, b) => summarize(a.samples).mean! - summarize(b.samples).mean!,
-  );
-  const warehouseEntities = getEntities(warehouseSamples, 'warehouses');
-  const containerSummary = summarize(containerSamples);
-  const warehouseSummary = summarize(warehouseSamples);
-  const fastest = routeEntities[0];
-  const trendRoutes = routeEntities.slice(0, 3).map((e) => routes.find((r) => r.id === e.id)!);
-  const history = months.map((month) => {
-    const samples = getSamples(dataset, { ...filters, month }, 'containers');
-    const warehouse = getSamples(dataset, { ...filters, month }, 'warehouses');
-    const entities = getEntities(samples, 'routes');
-    const fastestMean = entities.length
-      ? Math.min(...entities.map((e) => summarize(e.samples).mean!))
-      : null;
-    return {
-      name: `${Number(month.slice(-2))}月`,
-      container: summarize(samples).mean,
-      warehouse: summarize(warehouse).mean,
-      fastest: fastestMean,
-      ...Object.fromEntries(
-        trendRoutes.map((r) => [
-          r.id,
-          summarize(samples.filter((s) => s.shipment.routeId === r.id))[trendMetric],
-        ]),
-      ),
-    };
-  });
+  const query = useOverview(filters, trendMetric);
+  if (query.isPending || query.error)
+    return <QueryState error={query.error} retry={() => query.refetch()} />;
+  const data = query.data;
+  const containerSummary = data.containers;
+  const warehouseSummary = data.warehouses;
+  const fastest = data.fastestRoute;
+  const trendRoutes = data.trendRoutes;
+  const history = data.history;
+  const routeHistory = data.routeTrends.map((point) => ({ name: point.name, ...point.values }));
   const cards = [
     {
       key: 'containers' as const,
@@ -87,10 +60,10 @@ export function Overview({
       title: '航线时效',
       english: 'SERVICE',
       color: palette[1],
-      value: fastest ? summarize(fastest.samples).mean : null,
+      value: fastest?.value ?? null,
       label: '最快航线平均时效',
       unit: '条航线',
-      count: routeEntities.length,
+      count: data.routeCount,
       caption: '横向比较不同航线，选出合适的航程',
       trend: history.map((h) => ({ name: h.name, value: h.fastest })),
       foot: fastest?.name ?? '暂无有效样本',
@@ -108,7 +81,7 @@ export function Overview({
       count: warehouseSummary.count,
       caption: '看见入仓前的每一步，交付更有把握',
       trend: history.map((h) => ({ name: h.name, value: h.warehouse })),
-      foot: `覆盖 ${warehouseEntities.length} 个仓库`,
+      foot: `覆盖 ${data.warehouseCount} 个仓库`,
       kind: 'area' as const,
     },
   ];
@@ -171,6 +144,10 @@ export function Overview({
           </section>
         ))}
       </div>
+      <p className="sample-note">
+        本月共 {data.containerCohortCount} 个已发布有效柜次，其中 {data.containers.count}{' '}
+        个具有有效开船至拆柜时效；{data.unclassifiedRouteCount} 个柜次尚未确认航线，不进入航线排行。
+      </p>
       <div className="dashboard-grid">
         <ChartPanel
           title="主力航线时效走势"
@@ -189,7 +166,7 @@ export function Overview({
           }
         >
           <TrendChart
-            data={history}
+            data={routeHistory}
             series={trendRoutes.map((r, i) => ({ key: r.id, name: r.name, color: palette[i] }))}
           />
           <div className="chart-footnote">
@@ -198,28 +175,21 @@ export function Overview({
         </ChartPanel>
         <ChartPanel
           title="航线时效一览"
-          subtitle="平均开船至拆柜 · 越短越快"
+          subtitle="平均开船至拆柜 · 越短越快 · 显示前 8 项"
           action={
             <Button size="small" type="text" onClick={() => onNavigate('routes')}>
               全部 <ArrowRightOutlined />
             </Button>
           }
         >
-          <RankingChart
-            data={routeEntities.map((e) => ({
-              id: e.id,
-              name: e.name,
-              value: summarize(e.samples).mean!,
-            }))}
-            onSelect={(id) => onNavigate('routes', id)}
-          />
+          <RankingChart data={data.routeRanking} onSelect={(id) => onNavigate('routes', id)} />
           <div className="chart-footnote">点击航线，查看分段时效与历史对比</div>
         </ChartPanel>
       </div>
       <div className="dashboard-grid lower-grid">
         <ChartPanel
           title="亚马逊仓库送仓表现"
-          subtitle="平均开船至实际送仓 · 按送仓批次统计"
+          subtitle="平均开船至实际送仓 · 按送仓批次统计 · 前 8 项"
           action={
             <Button type="text" size="small" onClick={() => onNavigate('warehouses')}>
               对比仓库 <ArrowRightOutlined />
@@ -227,9 +197,7 @@ export function Overview({
           }
         >
           <RankingChart
-            data={warehouseEntities
-              .map((e) => ({ id: e.id, name: e.name, value: summarize(e.samples).mean! }))
-              .sort((a, b) => a.value - b.value)}
+            data={data.warehouseRanking}
             onSelect={(id) => onNavigate('warehouses', id)}
           />
         </ChartPanel>
@@ -242,7 +210,7 @@ export function Overview({
             </Tooltip>
           }
         >
-          <Histogram data={distribution(containerSamples)} />
+          <Histogram data={data.containerDistribution} />
         </ChartPanel>
       </div>
     </>
