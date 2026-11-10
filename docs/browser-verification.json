@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-11-10T04:16:06.738Z",
+  "baseURL": "http://127.0.0.1:4174",
+  "errors": [],
+  "pages": ["overview", "routes", "warehouses", "containers"],
+  "desktop": "1440 × 1080",
+  "mobile": "390 × 844",
+  "tablet": "1024 × 768",
+  "deviceScaleFactor": 1
+}
