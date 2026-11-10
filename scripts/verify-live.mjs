@@ -60,7 +60,9 @@ try {
     .locator('.mobile-nav')
     .getByRole('button', { name: /亚马逊仓库/ })
     .click();
+  await expect(page.locator('.mobile-nav')).not.toBeVisible();
   await expect(page.getByRole('heading', { name: /亚马逊仓库时效对比/ })).toBeVisible();
+  await page.waitForLoadState('networkidle');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: new URL('warehouses-mobile.png', output).pathname,

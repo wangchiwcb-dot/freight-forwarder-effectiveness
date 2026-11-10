@@ -2,6 +2,8 @@
 
 部署目标为阿里云香港（`cn-hongkong`），访问域名为 `transit.omfreight.vip`。香港服务器提供本站服务无需中国大陆 ICP 备案；若将来迁至大陆服务器，需要先处理备案，二级域名不能绕过备案要求。
 
+2026-11-10 已上线至 [https://transit.omfreight.vip](https://transit.omfreight.vip)。已验证 HTTPS、HTTP 跳转、生产数据库只读连接、四个页面、对比弹窗和手机导航。首页默认 2026 年 10 月；现有记录尚未发布，因此展示空数据。初次证书有效期至 2027-02-08，续期由服务器的 `certbot.timer` 执行；模拟续期及 Nginx 自动重载均已通过。
+
 ## 服务结构
 
 公网 HTTPS → Nginx → `127.0.0.1:3001` 的只读 API 与前端 → `127.0.0.1:5432` 的现有 PostgreSQL。数据库容器保持原有配置，部署不重建数据库、不导入数据、不修改发布状态。
@@ -30,7 +32,7 @@ Node.js 安装包须从官方来源下载，并与对应版本 `SHASUMS256.txt` 
 5. 安装 `deploy/freight-public.service`，设置当前版本链接，执行 `systemctl daemon-reload` 与 `systemctl enable --now freight-public`，核验本机健康接口。
 6. 安装 `deploy/nginx-http.conf` 进行证书验证。`nginx-default.conf` 只适用于尚无其他站点的服务器；已有站点不可覆盖。先 `nginx -t` 再 reload。
 7. DNS 生效后执行 `certbot certonly --webroot -w /var/www/freight-acme -d transit.omfreight.vip --non-interactive --agree-tos --register-unsafely-without-email`。随后安装 `nginx-https.conf`，核验并重新加载；HTTP 自动跳转 HTTPS。
-8. 将 `deploy/renewal-reload.sh` 安装为 `/etc/letsencrypt/renewal-hooks/deploy/freight-public-reload`，权限 0755。启用 `certbot.timer` 并执行 `certbot renew --dry-run` 验证续期。当前未设置证书通知邮箱，可由域名管理员后续补充。
+8. 将 `deploy/renewal-reload.sh` 安装为 `/etc/letsencrypt/renewal-hooks/deploy/freight-public-reload`，权限 0755。启用 `certbot.timer` 并执行 `certbot renew --dry-run --run-deploy-hooks --no-random-sleep-on-renew` 验证续期。当前未设置证书通知邮箱，可由域名管理员后续补充。
 
 `TRUST_PROXY=loopback` 仅信任同机代理，且 Nginx 会覆盖外部传入的 `X-Forwarded-For`。禁止直接将 API 绑定公网或改成信任任意代理。
 
