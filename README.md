@@ -4,7 +4,7 @@
 
 前端实际调用后端 API；后端支持显式演示模式和现有 PostgreSQL 数据库。生产环境使用阿里云香港服务器、Nginx HTTPS 和只读数据库角色，配置见 [部署说明](docs/deployment.md)。本地预览默认使用明确标记的演示数据。
 
-线上地址：[transit.omfreight.vip](https://transit.omfreight.vip)。历史记录尚未对外发布时，线上显示空数据。
+线上地址：[transit.omfreight.vip](https://transit.omfreight.vip)。现有 2,936 条运输记录已按用户确认发布；前台仍只统计符合有效性与海运范围规则的样本。以后新录入的数据默认未发布。
 
 ## 启动
 

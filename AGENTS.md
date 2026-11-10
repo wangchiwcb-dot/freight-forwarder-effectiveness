@@ -31,5 +31,11 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 
 - User explicitly authorized deployment to the existing Alibaba Cloud server under a subdomain of omfreight.vip. Server metadata confirms cn-hongkong. Use transit.omfreight.vip.
 - Deploy with Nginx HTTPS, a dedicated unprivileged systemd service, and a read-only database login. Keep application and PostgreSQL listeners on loopback.
-- Deployment does not authorize bulk publication of historical shipments. Preserve publication flags; an empty public dashboard is valid until records are approved for publication.
+- Initial deployment preserved publication flags. The later explicit publication authorization below supersedes that initial restriction for the current records.
 - Trust forwarding headers only from the local reverse proxy, which must overwrite X-Forwarded-For.
+
+## Publication and future administration (2026-11-10)
+
+- The user explicitly authorized publishing all 2,936 currently stored shipments. Back up first and preserve per-record publication timestamps, actor, and before/after audit entries. Keep source business fields unchanged.
+- This is a one-time publication of existing data. Keep new records unpublished by default and retain the API's published/valid/active/sea filters. Cancelled, non-sea, or invalid metric samples do not become chart samples merely because their publication flag is true.
+- The user plans a management system to edit data and explicitly confirm publication before it appears on this frontend, followed by login capabilities. Record this direction; do not implement that separate management/login scope until requested.
