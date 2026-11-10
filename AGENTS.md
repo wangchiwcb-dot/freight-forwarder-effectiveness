@@ -26,3 +26,10 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 - Frontend must fetch the API; never silently fall back to bundled fixtures when the backend fails.
 - Synthetic data belongs only in the explicit server demo adapter. Different metrics have independent valid denominators; stacked stages use a common complete subset.
 - Run production build before browser tests. Browser tests start the built application on 4175; keep 4173 available for user preview.
+
+## Deployment decisions (2026-11-10)
+
+- User explicitly authorized deployment to the existing Alibaba Cloud server under a subdomain of omfreight.vip. Server metadata confirms cn-hongkong. Use transit.omfreight.vip.
+- Deploy with Nginx HTTPS, a dedicated unprivileged systemd service, and a read-only database login. Keep application and PostgreSQL listeners on loopback.
+- Deployment does not authorize bulk publication of historical shipments. Preserve publication flags; an empty public dashboard is valid until records are approved for publication.
+- Trust forwarding headers only from the local reverse proxy, which must overwrite X-Forwarded-For.

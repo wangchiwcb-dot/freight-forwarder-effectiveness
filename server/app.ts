@@ -24,7 +24,7 @@ export async function createApp(
       : false,
     bodyLimit: 16384,
     requestTimeout: 15000,
-    trustProxy: false,
+    trustProxy: config.TRUST_PROXY === 'loopback' ? ['127.0.0.1', '::1'] : false,
   });
   await app.register(helmet, {
     contentSecurityPolicy: {

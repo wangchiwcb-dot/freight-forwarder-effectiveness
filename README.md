@@ -2,7 +2,7 @@
 
 对外展示柜子、航线、亚马逊仓库时效，支持筛选、四项对比、分段图、趋势与分布。前端为 React + TypeScript + Ant Design + Recharts，后端为 Node.js + TypeScript + Fastify + PostgreSQL，使用 TanStack Query 管理请求。
 
-前端已实际调用后端 API；后端支持显式演示模式和现有 PostgreSQL 数据库。当前本地预览使用演示模式，尚未部署阿里云或开放生产数据。
+前端实际调用后端 API；后端支持显式演示模式和现有 PostgreSQL 数据库。生产环境使用阿里云香港服务器、Nginx HTTPS 和只读数据库角色，配置见 [部署说明](docs/deployment.md)。本地预览默认使用明确标记的演示数据。
 
 ## 启动
 
@@ -45,6 +45,7 @@ server/
   config.ts              环境配置，生产默认使用数据库
   *.test.ts              API/统计/SQL 集成测试
 database/                结构迁移与待部署的只读权限脚本
+deploy/                  systemd、Nginx 与证书续期配置
 tests/e2e/               实际前后端浏览器测试
 Dockerfile               多阶段构建、非 root 运行
 .github/workflows/ci.yml 自动验证与产物构建

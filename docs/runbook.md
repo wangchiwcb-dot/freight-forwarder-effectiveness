@@ -1,6 +1,6 @@
 # 构建与运行说明
 
-本次只完成代码、测试、GitHub 构建和可部署产物，尚未部署阿里云，也没有修改线上数据或批量发布历史记录。
+前后端、测试和部署包在同一仓库维护。阿里云香港服务器的 HTTPS、服务配置和更新方式见 [部署说明](deployment.md)。业务数据发布与应用部署分开管理。
 
 ## 本地演示
 
@@ -37,7 +37,7 @@ node scripts/package-release.mjs
 
 压缩包不包含 .env、密码、业务数据、node_modules 或采集材料。解压后执行 `npm ci --omit=dev --ignore-scripts` 安装运行依赖，再配置环境。
 
-## 生产环境配置（部署确认后执行）
+## 生产环境配置
 
 ```dotenv
 NODE_ENV=production
@@ -50,11 +50,12 @@ DATABASE_URL=postgresql://freight_public_api:REPLACE_ME@127.0.0.1:5432/freight_t
 DB_POOL_MAX=5
 DB_SSL=disable
 RATE_LIMIT_MAX=120
+TRUST_PROXY=loopback
 ```
 
 `DB_SSL=disable` 仅适用于同机或可信私网链路；远程数据库使用 `verify-full` 和可验证的证书。不要将真实 DATABASE_URL 提交到仓库或传入 Vite 环境变量。
 
-使用最小权限账户 `freight_public_api`，不要使用数据库超级用户或已有写入账号。`database/public_api_role.sql` 是待部署审核时应用的权限准备脚本，不自动执行；管理员应单独使用 psql 的 `\password freight_public_api` 设置密码。API 启动不会迁移、导入、发布或修改任何记录。
+使用最小权限账户 `freight_public_api`，不要使用数据库超级用户或已有写入账号。`database/public_api_role.sql` 是部署时应用的权限准备脚本，不自动执行；管理员应单独安全设置密码。API 启动不会迁移、导入、发布或修改任何记录。
 
 现有数据库须已应用 001–008 迁移，且业务视图所有者应具有底层表读取权限。`database/schema.sql` 和迁移用于新建空库；不能对已有生产库重放初次建库。若尚无已发布记录，接口返回空数据，不能通过放宽发布检查“修复”。
 
@@ -65,7 +66,7 @@ curl --fail http://127.0.0.1:3001/health/ready
 
 服务同时托管 `/` 前端和 `/api/v1` 接口。未知 API、缺失资源和写请求不会退回 HTML 页面。进程收到 SIGTERM/SIGINT 时关闭 HTTP 服务和连接池。
 
-外网访问应在部署阶段确定 HTTPS、域名和反向代理。默认 API 不信任 X-Forwarded-For；使用代理后应配置精确可信代理，以免所有客户共享同一个限流 IP。此次没有把服务开放到公网。
+外网访问使用 HTTPS 与 Nginx 反向代理。默认 API 不信任 X-Forwarded-For；同机 Nginx 部署设置 `TRUST_PROXY=loopback`，Nginx 必须覆盖用户传入的转发头，以便按真实访问者限流。直连开发环境保持 `TRUST_PROXY=none`。
 
 ## Docker（可选）
 

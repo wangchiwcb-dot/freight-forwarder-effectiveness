@@ -108,6 +108,34 @@ describe('public API', () => {
     await api.inject('/api/v1/meta');
     expect((await api.inject('/api/v1/meta')).statusCode).toBe(429);
   });
+  it('separates proxied visitors and ignores forwarding headers from untrusted peers', async () => {
+    const api = await createApp(
+      readConfig({ DATA_SOURCE: 'demo', RATE_LIMIT_MAX: '1', TRUST_PROXY: 'loopback' }),
+      new DemoRepository(now),
+      () => now,
+    );
+    apps.push(api);
+    const request = (remoteAddress: string, forwarded: string) =>
+      api.inject({
+        url: '/api/v1/meta',
+        remoteAddress,
+        headers: { 'x-forwarded-for': forwarded },
+      });
+    expect((await request('127.0.0.1', '192.0.2.1')).statusCode).toBe(200);
+    expect((await request('127.0.0.1', '192.0.2.2')).statusCode).toBe(200);
+    expect((await request('127.0.0.1', '192.0.2.1')).statusCode).toBe(429);
+    expect((await request('198.51.100.1', '192.0.2.3')).statusCode).toBe(200);
+    expect((await request('198.51.100.1', '192.0.2.4')).statusCode).toBe(429);
+    const direct = await app(undefined, 1);
+    expect(
+      (await direct.inject({ url: '/api/v1/meta', headers: { 'x-forwarded-for': '192.0.2.5' } }))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (await direct.inject({ url: '/api/v1/meta', headers: { 'x-forwarded-for': '192.0.2.6' } }))
+        .statusCode,
+    ).toBe(429);
+  });
   it('fails closed for missing production database configuration or implicit production demo', () => {
     expect(() => readConfig({ NODE_ENV: 'production' })).toThrow();
     expect(() => readConfig({ NODE_ENV: 'production', DATA_SOURCE: 'demo' })).toThrow();

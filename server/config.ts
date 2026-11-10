@@ -11,6 +11,7 @@ export const configSchema = z
     DB_SSL: z.enum(['disable', 'verify-full']).default('disable'),
     STATIC_DIR: z.string().optional(),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10000).default(120),
+    TRUST_PROXY: z.enum(['none', 'loopback']).default('none'),
     ALLOW_PRODUCTION_DEMO: z.enum(['true', 'false']).default('false'),
   })
   .superRefine((config, ctx) => {
